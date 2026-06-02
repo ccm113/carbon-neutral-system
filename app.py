@@ -9,7 +9,7 @@ from database import db
 from data_processor import DataProcessor
 from user_profile import UserProfile
 from llm_integration import LLMIntegration
-from carbon_game import show_carbon_game_page
+from carbon_games_new import show_games_page
 
 # 页面配置
 st.set_page_config(
@@ -885,7 +885,7 @@ def main():
     elif choice == "用户画像":
         show_user_profile()
     elif choice == "碳游戏":
-        show_carbon_game_page()
+        show_games_page()
     elif choice == "分析报告":
         show_analysis_report()
     elif choice == "AI问答":
