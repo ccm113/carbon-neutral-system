@@ -509,7 +509,10 @@ def carbon_cycle_challenge(game):
 def eco_quiz(game):
     st.header("📚 环保知识问答王")
     
-    # 初始化状态
+    # 获取用户信息
+    user_id = st.session_state.get('current_user')
+    
+    # 初始化状态（包括金币）
     if 'quiz_score' not in st.session_state:
         st.session_state.quiz_score = 0
         st.session_state.quiz_index = 0
@@ -518,19 +521,20 @@ def eco_quiz(game):
         st.session_state.quiz_current_question = None
         st.session_state.quiz_hint_used = False
         st.session_state.quiz_helped = False
+        
+        # 从数据库加载金币
+        if user_id:
+            try:
+                import database as db
+                user_data = db.get_user(user_id)
+                st.session_state.quiz_coins = user_data.get('coins', 100)
+            except:
+                st.session_state.quiz_coins = 100
+        else:
+            st.session_state.quiz_coins = 100
     
-    # 获取用户金币
-    if 'current_user' in st.session_state:
-        user_id = st.session_state.current_user
-        try:
-            import database as db
-            user_data = db.get_user(user_id)
-            coins = user_data.get('coins', 100)
-        except:
-            coins = 100
-    else:
-        coins = 100
-    
+    # 获取当前金币（从session_state）
+    coins = st.session_state.quiz_coins
     score = st.session_state.quiz_score
     asked = st.session_state.quiz_asked
     current_question = st.session_state.quiz_current_question
@@ -541,13 +545,14 @@ def eco_quiz(game):
         
         # 计算奖励金币（每题5金币）
         reward = score * 5
+        final_coins = coins + reward
         st.success(f"🎉 获得 {reward} 金币奖励！")
         
-        # 更新用户金币
-        if 'current_user' in st.session_state:
+        # 更新用户金币到数据库
+        if user_id:
             try:
                 import database as db
-                db.update_user_coins(user_id, coins + reward)
+                db.update_user_coins(user_id, final_coins)
             except:
                 pass
         
@@ -568,7 +573,9 @@ def eco_quiz(game):
         
         st.markdown(f"<h2 style='color: {color};'>{rating}</h2>", unsafe_allow_html=True)
         st.metric("最终得分", f"{score}/10")
-        st.metric("💰 获得金币", reward)
+        st.metric("💰 当前金币", coins)
+        st.metric("🎁 获得奖励", reward)
+        st.metric("🏆 最终金币", final_coins)
         st.progress(percentage / 100)
         
         if st.button("🔄 再玩一次", key="quiz_restart"):
@@ -579,6 +586,17 @@ def eco_quiz(game):
             st.session_state.quiz_current_question = None
             st.session_state.quiz_hint_used = False
             st.session_state.quiz_helped = False
+            
+            # 重新从数据库加载金币
+            if user_id:
+                try:
+                    import database as db
+                    user_data = db.get_user(user_id)
+                    st.session_state.quiz_coins = user_data.get('coins', 100)
+                except:
+                    st.session_state.quiz_coins = 100
+            else:
+                st.session_state.quiz_coins = 100
             st.rerun()
         return
     
@@ -636,40 +654,50 @@ def eco_quiz(game):
         if not st.session_state.quiz_hint_used and not st.session_state.quiz_helped:
             if st.button(f"💡 提示 (-3金币)", key="quiz_hint", disabled=coins < 3):
                 if coins >= 3:
+                    # 实时更新session_state金币
+                    st.session_state.quiz_coins -= 3
                     st.session_state.quiz_hint_used = True
                     st.info(f"💡 提示：答案不是选项{'A' if current_question['answer'] != 0 else 'B'}")
-                    # 更新金币（延迟更新）
-                    if 'current_user' in st.session_state:
+                    # 更新数据库
+                    if user_id:
                         try:
                             import database as db
-                            db.update_user_coins(user_id, coins - 3)
+                            db.update_user_coins(user_id, st.session_state.quiz_coins)
                         except:
                             pass
-    
+                    st.rerun()
+
     with col2:
         if not st.session_state.quiz_helped:
             if st.button(f"📞 场外求助 (-5金币)", key="quiz_help", disabled=coins < 5):
                 if coins >= 5:
+                    # 实时更新session_state金币
+                    st.session_state.quiz_coins -= 5
                     st.session_state.quiz_helped = True
                     answer_idx = current_question['answer']
                     st.success(f"✅ 场外求助答案：{current_question['options'][answer_idx]}")
-                    if 'current_user' in st.session_state:
+                    # 更新数据库
+                    if user_id:
                         try:
                             import database as db
-                            db.update_user_coins(user_id, coins - 5)
+                            db.update_user_coins(user_id, st.session_state.quiz_coins)
                         except:
                             pass
-    
+                    st.rerun()
+
     with col3:
         if st.button(f"🔄 换一题 (-1金币)", key="quiz_switch", disabled=coins < 1):
             if coins >= 1:
+                # 实时更新session_state金币
+                st.session_state.quiz_coins -= 1
                 st.session_state.quiz_current_question = None
                 st.session_state.quiz_hint_used = False
                 st.session_state.quiz_helped = False
-                if 'current_user' in st.session_state:
+                # 更新数据库
+                if user_id:
                     try:
                         import database as db
-                        db.update_user_coins(user_id, coins - 1)
+                        db.update_user_coins(user_id, st.session_state.quiz_coins)
                     except:
                         pass
                 st.rerun()
