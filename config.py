@@ -4,10 +4,22 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# LLM配置
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen-plus")
+# 尝试导入Streamlit用于Secrets
+try:
+    import streamlit as st
+    STREAMLIT_AVAILABLE = True
+except ImportError:
+    STREAMLIT_AVAILABLE = False
+
+# LLM配置 - 优先使用Streamlit Secrets
+def get_secret(key, default=""):
+    if STREAMLIT_AVAILABLE:
+        return st.secrets.get(key, default)
+    return os.getenv(key, default)
+
+OPENAI_API_KEY = get_secret("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = get_secret("OPENAI_BASE_URL", "https://api.openai.com/v1")
+LLM_MODEL = get_secret("LLM_MODEL", "gpt-3.5-turbo")
 
 # 碳排放系数配置（单位：kg CO2）
 CARBON_FACTORS = {

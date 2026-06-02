@@ -136,79 +136,230 @@ def daily_simulator(game):
     
     # 初始化状态
     if 'sim_day' not in st.session_state:
-        st.session_state.sim_day = 0
-        st.session_state.sim_score = 0
+        st.session_state.sim_day = 1
         st.session_state.sim_emission = 0
         st.session_state.sim_choices = []
-        st.session_state.sim_events = []
+        st.session_state.sim_completed = False
+        st.session_state.sim_shown_questions = []  # 记录已显示的问题
     
     day = st.session_state.sim_day
-    total_emission = st.session_state.sim_emission
+    emission = st.session_state.sim_emission
     choices = st.session_state.sim_choices
+    shown_questions = st.session_state.sim_shown_questions
     
-    # 游戏结束
-    if day >= len(game.daily_events):
+    # 丰富的游戏场景数据
+    scenarios = [
+        {
+            "id": "morning_wash",
+            "time": "🌅 早晨洗漱",
+            "question": "今天早上您如何洗漱？",
+            "options": [
+                {"text": "🚿 冷水洗澡", "emission": 2, "category": "洗漱"},
+                {"text": "🚿 热水洗澡", "emission": 15, "category": "洗漱"},
+                {"text": "🧴 冷水洗脸", "emission": 0.5, "category": "洗漱"},
+                {"text": "🧴 热水洗脸", "emission": 3, "category": "洗漱"}
+            ]
+        },
+        {
+            "id": "breakfast",
+            "time": "🍳 早餐时间",
+            "question": "今天的早餐您选择？",
+            "options": [
+                {"text": "🥢 白粥+咸菜", "emission": 1, "category": "饮食"},
+                {"text": "🥢 豆浆+油条", "emission": 3, "category": "饮食"},
+                {"text": "🥚 鸡蛋+馒头", "emission": 2, "category": "饮食"},
+                {"text": "☕ 咖啡+面包", "emission": 5, "category": "饮食"},
+                {"text": "🍜 牛肉面", "emission": 6, "category": "饮食"},
+                {"text": "🍞 三明治", "emission": 4, "category": "饮食"}
+            ]
+        },
+        {
+            "id": "transport",
+            "time": "🚶 出行方式",
+            "question": "今天上班/上学您选择？",
+            "options": [
+                {"text": "🚶 步行", "emission": 0, "category": "出行"},
+                {"text": "🚲 自行车", "emission": 0.5, "category": "出行"},
+                {"text": "🛵 电动车", "emission": 2, "category": "出行"},
+                {"text": "🚌 公共交通", "emission": 5, "category": "出行"},
+                {"text": "🚗 自驾（燃油车）", "emission": 25, "category": "出行"},
+                {"text": "🚗 自驾（新能源车）", "emission": 8, "category": "出行"}
+            ]
+        },
+        {
+            "id": "lunch",
+            "time": "🍱 午餐选择",
+            "question": "今天午餐您选择？",
+            "options": [
+                {"text": "🥗 自带便当", "emission": 2, "category": "饮食"},
+                {"text": "🥢 食堂就餐", "emission": 4, "category": "饮食"},
+                {"text": "🍲 外卖（一次性餐具）", "emission": 8, "category": "饮食"},
+                {"text": "🍲 外卖（自备餐具）", "emission": 6, "category": "饮食"},
+                {"text": "🍔 快餐", "emission": 10, "category": "饮食"},
+                {"text": "🥬 素食套餐", "emission": 3, "category": "饮食"}
+            ]
+        },
+        {
+            "id": "shopping",
+            "time": "🛍️ 购物习惯",
+            "question": "购物时您会？",
+            "options": [
+                {"text": "👜 自带购物袋", "emission": 0, "category": "购物"},
+                {"text": "🛍️ 使用商家塑料袋", "emission": 0.5, "category": "购物"},
+                {"text": "♻️ 使用可降解塑料袋", "emission": 0.2, "category": "购物"},
+                {"text": "📦 选择无包装商品", "emission": 0, "category": "购物"}
+            ]
+        },
+        {
+            "id": "leftovers",
+            "time": "🥡 剩菜处理",
+            "question": "晚餐有剩菜，您会？",
+            "options": [
+                {"text": "🥡 用保鲜盒装好冷藏（第二天吃）", "emission": 1.5, "category": "饮食"},
+                {"text": "🗑️ 直接丢弃", "emission": 3, "category": "饮食"},
+                {"text": "🐶 喂宠物", "emission": 0.5, "category": "饮食"},
+                {"text": "🌱 做成堆肥", "emission": 0, "category": "饮食"}
+            ]
+        },
+        {
+            "id": "evening",
+            "time": "🌙 晚间活动",
+            "question": "晚上您打算如何度过？",
+            "options": [
+                {"text": "📚 阅读（开灯）", "emission": 1, "category": "娱乐"},
+                {"text": "🎬 看电影（关灯）", "emission": 2, "category": "娱乐"},
+                {"text": "🎮 玩游戏（全开灯）", "emission": 4, "category": "娱乐"},
+                {"text": "🏃 户外运动", "emission": 0.5, "category": "娱乐"},
+                {"text": "💻 工作/学习", "emission": 3, "category": "娱乐"}
+            ]
+        },
+        {
+            "id": "appliances",
+            "time": "🔌 电器使用",
+            "question": "离开房间时您会？",
+            "options": [
+                {"text": "🔌 关闭所有电器电源", "emission": 0, "category": "用电"},
+                {"text": "💡 只关灯，其他待机", "emission": 0.5, "category": "用电"},
+                {"text": "🔄 让电器继续运行", "emission": 2, "category": "用电"}
+            ]
+        }
+    ]
+    
+    # 游戏完成显示结果
+    if st.session_state.sim_completed:
         st.subheader("🎉 一天结束！")
         
-        # 评级
-        if total_emission <= 5:
-            rating = "🌟 低碳达人"
+        # 计算总碳排放量
+        total_emission = sum(choice["emission"] for choice in choices)
+        
+        # 生成称号
+        if total_emission <= 15:
+            title = "🌟 低碳达人"
             color = "#2ECC71"
             message = "太棒了！你的生活方式非常环保！"
-        elif total_emission <= 10:
-            rating = "🌱 环保爱好者"
+        elif total_emission <= 30:
+            title = "🌱 环保卫士"
             color = "#3498DB"
             message = "做得不错！继续保持低碳生活！"
-        elif total_emission <= 15:
-            rating = "🌿 低碳学习者"
+        elif total_emission <= 50:
+            title = "😊 低碳新手"
             color = "#F39C12"
             message = "还有改进空间，多关注环保！"
         else:
-            rating = "🔥 需要努力"
+            title = "🔥 碳足迹大户"
             color = "#E74C3C"
             message = "需要采取更多低碳行动！"
         
-        st.markdown(f"<h2 style='color: {color};'>{rating}</h2>", unsafe_allow_html=True)
-        st.metric("今日碳排放量", f"{total_emission:.1f} kg CO₂")
+        # 计算打败的百分比
+        beat_percent = min(99, max(1, 100 - int(total_emission * 1.5)))
         
-        # 回顾选择
-        st.subheader("📋 今日选择回顾")
-        for i, (event, choice) in enumerate(zip(game.daily_events, choices)):
-            st.write(f"**{event['time']}**")
-            st.write(f"  - {choice['text']}")
-            st.write(f"  - 碳排放: {choice['emission']} kg CO₂")
+        # 分析做得好和不好的地方
+        good_choices = [c for c in choices if c["emission"] <= 2]
+        bad_choices = [c for c in choices if c["emission"] >= 10]
         
+        # 显示碳排放量起伏数轴
+        st.subheader("📊 全天碳排放量变化")
+        times = [c["time"] for c in choices]
+        emissions = [c["emission"] for c in choices]
+        
+        df = pd.DataFrame({"时间": times, "碳排放量(kg)": emissions})
+        fig = px.line(df, x="时间", y="碳排放量(kg)", 
+                     title="一天中的碳排放量变化",
+                     markers=True,
+                     color_discrete_sequence=["#10B981"])
+        fig.update_layout(height=300)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # 显示结果
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("🌍 总碳排放量", f"{total_emission:.1f} kg")
+        with col2:
+            st.metric("🏆 打败用户", f"{beat_percent}%")
+        
+        st.markdown(f"<h2 style='color: {color};'>🏅 {title}</h2>", unsafe_allow_html=True)
         st.success(message)
         
-        if st.button("🔄 再玩一次", key="sim_restart"):
-            st.session_state.sim_day = 0
-            st.session_state.sim_score = 0
+        # 分析报告
+        st.subheader("📝 今日分析")
+        if good_choices:
+            st.success("✅ 做得好的地方：")
+            for choice in good_choices:
+                st.write(f"- {choice['time']}：{choice['text']}")
+        
+        if bad_choices:
+            st.warning("⚠️ 需要改进的地方：")
+            for choice in bad_choices:
+                st.write(f"- {choice['time']}：{choice['text']}（碳排放较高）")
+        
+        if not good_choices and not bad_choices:
+            st.info("💡 整体表现不错，继续保持！")
+        
+        # 再玩一次按钮
+        if st.button("🔄 再玩一次", use_container_width=True):
+            st.session_state.sim_day = 1
             st.session_state.sim_emission = 0
             st.session_state.sim_choices = []
+            st.session_state.sim_completed = False
+            st.session_state.sim_shown_questions = []
             st.rerun()
+        
         return
     
-    # 当前时间段
-    current_event = game.daily_events[day]
+    # 游戏进行中 - 获取下一个未显示的问题
+    available_scenarios = [s for s in scenarios if s["id"] not in shown_questions]
     
-    st.subheader(f"⏰ {current_event['time']}")
-    st.progress(day / len(game.daily_events))
+    if not available_scenarios:
+        st.session_state.sim_completed = True
+        st.rerun()
     
-    # 随机选择一个场景
-    scenario = random.choice(current_event["scenarios"])
+    # 随机选择一个未显示的问题
+    scenario = random.choice(available_scenarios)
+    st.session_state.sim_shown_questions.append(scenario["id"])
+    
+    # 显示问题
+    st.subheader(scenario["time"])
     st.write(f"**{scenario['question']}**")
     
-    # 选项按钮
+    # 选项按钮（不显示碳排放量）
     for option in scenario["options"]:
-        if st.button(f"{option['text']}\n\n💡 {option['reason']}", key=f"sim_option_{day}_{option['emission']}", use_container_width=True):
+        if st.button(f"{option['text']}", 
+                   key=f"sim_opt_{scenario['id']}_{option['text']}",
+                   use_container_width=True):
+            st.session_state.sim_choices.append({
+                "time": scenario["time"],
+                "text": option["text"],
+                "emission": option["emission"],
+                "category": option["category"]
+            })
             st.session_state.sim_emission += option["emission"]
-            st.session_state.sim_choices.append(option)
             st.session_state.sim_day += 1
-            st.success(f"选择成功！碳排放 +{option['emission']} kg CO₂")
             st.rerun()
     
-    # 提示信息
-    st.info(f"💡 小贴士：当前已产生 {total_emission:.1f} kg CO₂")
+    # 进度提示
+    progress = len(shown_questions) / len(scenarios)
+    st.progress(progress)
+    st.write(f"⏰ 已完成 {len(shown_questions)}/{len(scenarios)} 个场景")
 
 # 游戏2：碳循环大挑战
 def carbon_cycle_challenge(game):
