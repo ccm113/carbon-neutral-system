@@ -371,15 +371,20 @@ def carbon_cycle_challenge(game):
         st.session_state.cycle_round = 1
         st.session_state.cycle_co2 = 420
         st.session_state.cycle_sinks = game.sink_capacities.copy()
+        st.session_state.cycle_selected = False
+        st.session_state.cycle_events = []
     
     score = st.session_state.cycle_score
     round_num = st.session_state.cycle_round
     co2_level = st.session_state.cycle_co2
     sink_levels = st.session_state.cycle_sinks
+    selected = st.session_state.cycle_selected
+    current_events = st.session_state.cycle_events
     
     # 游戏结束
     if round_num > 10 or co2_level >= 500:
         st.subheader("🏁 游戏结束")
+        
         if co2_level < 350:
             st.success(f"🎉 恭喜！成功将CO₂降至 {co2_level} ppm！")
             st.balloons()
@@ -393,47 +398,112 @@ def carbon_cycle_challenge(game):
             st.session_state.cycle_round = 1
             st.session_state.cycle_co2 = 420
             st.session_state.cycle_sinks = game.sink_capacities.copy()
+            st.session_state.cycle_selected = False
+            st.session_state.cycle_events = []
             st.rerun()
         return
+    
+    # 游戏规则介绍
+    with st.expander("📖 游戏规则", expanded=round_num == 1):
+        st.write("""
+        **游戏目标**：在10回合内将大气CO₂浓度降至350 ppm以下！
+        
+        **游戏玩法**：
+        1. 每回合选择一种碳汇方式吸收CO₂
+        2. 每回合必定触发一个随机事件（可能增加或减少CO₂）
+        3. 碳汇有容量限制，用完即止
+        4. CO₂浓度达到500 ppm则游戏失败
+        
+        **碳汇方式**：
+        - 🌲 森林吸收：陆地植物光合作用
+        - 🌊 海洋吸收：海洋浮游生物固碳
+        - 🏭 碳捕获：工业碳捕获技术
+        - 🚗 减少排放：节能减排措施
+        """)
     
     # 游戏状态
     st.subheader(f"第 {round_num}/10 回合")
     
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("大气CO₂浓度", f"{co2_level} ppm", delta=f"目标: <350 ppm", delta_color="inverse")
+        st.metric("🌍 CO₂浓度", f"{co2_level} ppm")
     with col2:
-        st.metric("当前得分", score)
+        st.metric("🎯 目标", "< 350 ppm")
+    with col3:
+        st.metric("📊 当前得分", score)
     
     # CO₂进度条
     progress = min(co2_level / 500, 1)
     st.progress(progress)
     
-    # 碳汇选择
-    st.subheader("🌿 选择碳汇吸收CO₂")
-    cols = st.columns(2)
+    # 显示当前回合事件
+    if selected and current_events:
+        st.subheader("📢 本回合事件")
+        for event in current_events:
+            if event["type"] == "success":
+                st.success(f"🎉 {event['text']}")
+            elif event["type"] == "warning":
+                st.warning(f"⚠️ {event['text']}")
+            elif event["type"] == "info":
+                st.info(f"💡 {event['text']}")
+        
+        # 下一回合按钮
+        if st.button("➡️ 下一回合", use_container_width=True):
+            st.session_state.cycle_round += 1
+            st.session_state.cycle_selected = False
+            st.session_state.cycle_events = []
+            st.rerun()
     
-    for i, (sink, capacity) in enumerate(zip(game.carbon_sinks, sink_levels)):
-        with cols[i % 2]:
-            if st.button(f"{sink}\n\n剩余容量: {capacity} kg", key=f"cycle_sink_{i}_{round_num}", use_container_width=True):
-                absorb = min(capacity, random.randint(20, 50))
-                st.session_state.cycle_co2 -= absorb
-                st.session_state.cycle_sinks[i] -= absorb
-                st.session_state.cycle_score += absorb
-                st.session_state.cycle_round += 1
-                st.success(f"✅ {sink}吸收了 {absorb} kg CO₂！")
-                st.rerun()
+    else:
+        # 碳汇选择（每回合只能选一次）
+        st.subheader("🌿 选择碳汇吸收CO₂")
+        cols = st.columns(2)
+        
+        for i, (sink, capacity) in enumerate(zip(game.carbon_sinks, sink_levels)):
+            with cols[i % 2]:
+                if st.button(f"{sink}\n\n剩余容量: {capacity} kg", key=f"cycle_sink_{i}_{round_num}", use_container_width=True, disabled=selected):
+                    # 选择碳汇
+                    absorb = min(capacity, random.randint(20, 50))
+                    st.session_state.cycle_co2 -= absorb
+                    st.session_state.cycle_sinks[i] -= absorb
+                    st.session_state.cycle_score += absorb
+                    st.session_state.cycle_selected = True
+                    
+                    # 添加事件
+                    events = []
+                    events.append({"type": "success", "text": f"{sink}吸收了 {absorb} kg CO₂！"})
+                    
+                    # 每回合必定触发随机事件
+                    event_types = [
+                        {"type": "warning", "text": f"工厂排放！CO₂增加 {random.randint(20, 40)} kg"},
+                        {"type": "warning", "text": f"森林火灾！CO₂增加 {random.randint(30, 50)} kg"},
+                        {"type": "warning", "text": f"火山爆发！CO₂增加 {random.randint(40, 60)} kg"},
+                        {"type": "success", "text": f"新能源推广！CO₂减少 {random.randint(10, 25)} kg"},
+                        {"type": "success", "text": f"植树造林！CO₂减少 {random.randint(15, 30)} kg"},
+                        {"type": "info", "text": f"天气晴朗，植物光合作用增强！CO₂减少 {random.randint(5, 15)} kg"},
+                    ]
+                    
+                    random_event = random.choice(event_types)
+                    if random_event["type"] == "warning":
+                        # 提取CO₂增加量
+                        import re
+                        match = re.search(r'增加 (\d+)', random_event["text"])
+                        if match:
+                            st.session_state.cycle_co2 += int(match.group(1))
+                    elif random_event["type"] == "success" or random_event["type"] == "info":
+                        match = re.search(r'减少 (\d+)', random_event["text"])
+                        if match:
+                            st.session_state.cycle_co2 -= int(match.group(1))
+                    
+                    events.append(random_event)
+                    st.session_state.cycle_events = events
+                    
+                    st.rerun()
     
-    # 随机事件
-    if random.random() < 0.3:
-        event_type = random.choice(["工厂排放", "森林火灾", "火山爆发"])
-        emission = random.randint(30, 60)
-        st.session_state.cycle_co2 += emission
-        st.error(f"⚠️ 随机事件：{event_type}！CO₂增加 {emission} kg")
-        time.sleep(1)
-        st.rerun()
-    
-    st.info(f"💡 提示：大气中CO₂安全水平是350 ppm，当前是 {co2_level} ppm")
+    # 碳汇容量显示
+    st.subheader("📊 碳汇容量")
+    for sink, capacity in zip(game.carbon_sinks, sink_levels):
+        st.write(f"- {sink}: {capacity} kg")
 
 # 游戏3：环保知识问答王
 def eco_quiz(game):
@@ -636,77 +706,222 @@ def eco_quiz(game):
 def carbon_farm():
     st.header("🌾 碳中和农场")
     
+    # 获取用户金币
+    if 'current_user' in st.session_state:
+        user_id = st.session_state.current_user
+        try:
+            import database as db
+            user_data = db.get_user(user_id)
+            initial_coins = user_data.get('coins', 100)
+        except:
+            initial_coins = 100
+    else:
+        initial_coins = 100
+    
     # 初始化状态
-    if 'farm_money' not in st.session_state:
-        st.session_state.farm_money = 100
-        st.session_state.farm_trees = 0
-        st.session_state.farm_solar = 0
-        st.session_state.farm_plants = 0
+    if 'farm_coins' not in st.session_state:
+        st.session_state.farm_coins = initial_coins
         st.session_state.farm_day = 1
-        st.session_state.farm_co2 = 0
+        st.session_state.farm_plants = []  # 存储植物: {'id': int, 'type': str, 'planted_day': int, 'growth_days': int, 'value': int, 'absorption': int}
+        st.session_state.farm_total_emission = 0
+        st.session_state.farm_total_absorbed = 0
     
-    money = st.session_state.farm_money
-    trees = st.session_state.farm_trees
-    solar = st.session_state.farm_solar
-    plants = st.session_state.farm_plants
+    coins = st.session_state.farm_coins
     day = st.session_state.farm_day
-    total_co2 = st.session_state.farm_co2
+    plants = st.session_state.farm_plants
+    total_emission = st.session_state.farm_total_emission
+    total_absorbed = st.session_state.farm_total_absorbed
     
-    # 农场状态
-    st.subheader(f"📅 第 {day} 天")
+    # 植物配置
+    plant_config = {
+        'tree': {
+            'name': '🌲 树苗',
+            'price': 30,
+            'growth_days': 5,
+            'value': 100,
+            'absorption': 15,
+            'emission': 2
+        },
+        'crop': {
+            'name': '🥬 蔬菜种子',
+            'price': 15,
+            'growth_days': 3,
+            'value': 40,
+            'absorption': 5,
+            'emission': 1
+        },
+        'flower': {
+            'name': '🌸 花卉种子',
+            'price': 20,
+            'growth_days': 4,
+            'value': 60,
+            'absorption': 3,
+            'emission': 1
+        },
+        'bamboo': {
+            'name': '🎋 竹子',
+            'price': 25,
+            'growth_days': 4,
+            'value': 80,
+            'absorption': 12,
+            'emission': 2
+        }
+    }
     
-    col1, col2, col3, col4 = st.columns(4)
+    # 游戏结束检查
+    if day > 14:
+        st.subheader("🏁 农场经营结束！")
+        
+        # 更新用户金币
+        if 'current_user' in st.session_state:
+            try:
+                import database as db
+                db.update_user_coins(user_id, initial_coins + coins)
+            except:
+                pass
+        
+        net_emission = total_emission - total_absorbed
+        
+        st.metric("💰 最终金币", coins)
+        st.metric("🌍 净碳排放量", f"{net_emission:.1f} kg")
+        
+        if net_emission <= 0:
+            st.success("🎉 恭喜！您的农场实现了碳中和！")
+            st.balloons()
+        else:
+            st.warning(f"💡 还需努力！净碳排放 {net_emission:.1f} kg")
+        
+        if st.button("🔄 重新开始", use_container_width=True):
+            st.session_state.farm_coins = initial_coins
+            st.session_state.farm_day = 1
+            st.session_state.farm_plants = []
+            st.session_state.farm_total_emission = 0
+            st.session_state.farm_total_absorbed = 0
+            st.rerun()
+        return
+    
+    # 主布局
+    col1, col2 = st.columns([3, 2])
+    
     with col1:
-        st.metric("💰 金币", money)
-    with col2:
-        st.metric("🌲 树木", trees)
-    with col3:
-        st.metric("☀️ 太阳能板", solar)
-    with col4:
-        st.metric("🌱 植物", plants)
-    
-    # 碳平衡计算
-    co2_produced = day * 10  # 每天产生的碳排放
-    co2_absorbed = trees * 15 + plants * 5 + solar * 20
-    balance = co2_absorbed - co2_produced
-    
-    st.subheader("📊 碳平衡")
-    st.metric("累计碳排放", f"{co2_produced} kg")
-    st.metric("累计碳吸收", f"{co2_absorbed} kg")
-    st.metric("碳平衡", f"{balance} kg", delta="目标: ≥0", delta_color="normal" if balance >= 0 else "inverse")
-    
-    # 商店
-    st.subheader("🛒 商店")
-    items = [
-        {"name": "🌲 树苗", "price": 20, "effect": "trees", "description": "每棵树每年吸收15kg CO₂"},
-        {"name": "☀️ 太阳能板", "price": 50, "effect": "solar", "description": "每天发电减少20kg CO₂"},
-        {"name": "🌱 蔬菜种子", "price": 10, "effect": "plants", "description": "每株植物吸收5kg CO₂"}
-    ]
-    
-    cols = st.columns(3)
-    for i, item in enumerate(items):
-        with cols[i]:
-            if st.button(f"{item['name']}\n\n💰 {item['price']}\n\n{item['description']}", 
-                       key=f"farm_item_{i}", use_container_width=True,
-                       disabled=money < item['price']):
-                if money >= item['price']:
-                    st.session_state.farm_money -= item['price']
-                    st.session_state[f"farm_{item['effect']}"] += 1
-                    st.success(f"✅ 购买了 {item['name']}！")
+        # 游戏状态
+        st.subheader(f"📅 第 {day}/14 天")
+        st.metric("💰 金币", coins)
+        
+        # 碳平衡显示
+        col_emission, col_absorbed = st.columns(2)
+        with col_emission:
+            st.metric("🔥 碳排放", f"{total_emission:.1f} kg")
+        with col_absorbed:
+            st.metric("🌿 碳吸收", f"{total_absorbed:.1f} kg")
+        
+        # 商店
+        st.subheader("🛒 商店")
+        shop_cols = st.columns(2)
+        for i, (plant_type, config) in enumerate(plant_config.items()):
+            with shop_cols[i % 2]:
+                if st.button(f"{config['name']}\\n\\n💰{config['price']} | 成长{config['growth_days']}天 | 💰{config['value']}",
+                           key=f"farm_buy_{plant_type}",
+                           use_container_width=True,
+                           disabled=coins < config['price']):
+                    st.session_state.farm_coins -= config['price']
+                    st.session_state.farm_plants.append({
+                        'id': len(plants) + 1,
+                        'type': plant_type,
+                        'planted_day': day,
+                        'growth_days': config['growth_days'],
+                        'value': config['value'],
+                        'absorption': config['absorption'],
+                        'emission': config['emission']
+                    })
+                    st.session_state.farm_total_emission += config['emission']
+                    st.success(f"✅ 购买了 {config['name']}！")
                     st.rerun()
+        
+        # 收获区
+        st.subheader("🌾 收获区")
+        ready_plants = [p for p in plants if day >= p['planted_day'] + p['growth_days']]
+        
+        if ready_plants:
+            for plant in ready_plants:
+                config = plant_config[plant['type']]
+                if st.button(f"🎁 收获 {config['name']} | 💰+{plant['value']}",
+                           key=f"farm_harvest_{plant['id']}",
+                           use_container_width=True):
+                    st.session_state.farm_coins += plant['value']
+                    st.session_state.farm_total_absorbed += plant['absorption'] * plant['growth_days']
+                    st.session_state.farm_plants.remove(plant)
+                    st.success(f"✅ 收获成功！获得 {plant['value']} 金币")
+                    st.rerun()
+        else:
+            st.info("🌱 暂无成熟的作物，请耐心等待...")
+        
+        # 强制碳排放活动
+        st.subheader("🔥 日常生活碳排放")
+        daily_emissions = [
+            {"name": "🚗 开车出行", "emission": 5, "desc": "日常通勤"},
+            {"name": "🏠 用电", "emission": 3, "desc": "家庭用电"},
+            {"name": "🍽️ 饮食", "emission": 2, "desc": "食物生产运输"},
+            {"name": "📦 网购", "emission": 1, "desc": "快递包装"}
+        ]
+        
+        daily_total = 0
+        for activity in daily_emissions:
+            st.write(f"- {activity['name']}：+{activity['emission']} kg CO₂（{activity['desc']}）")
+            daily_total += activity['emission']
+        
+        # 下一天按钮
+        if st.button("➡️ 进入下一天", use_container_width=True):
+            # 计算当天碳吸收
+            for plant in plants:
+                days_grown = day - plant['planted_day']
+                if days_grown > 0:
+                    st.session_state.farm_total_absorbed += plant['absorption']
+            
+            # 添加当天碳排放
+            st.session_state.farm_total_emission += daily_total
+            st.session_state.farm_day += 1
+            st.rerun()
     
-    # 收获
-    if st.button("🌾 收获农产品", key="farm_harvest"):
-        harvest = plants * 5
-        st.session_state.farm_money += harvest
-        st.success(f"✅ 收获了 ¥{harvest}！")
-        st.rerun()
-    
-    # 下一天
-    if st.button("➡️ 进入下一天", key="farm_next_day"):
-        st.session_state.farm_day += 1
-        st.session_state.farm_co2 += 10  # 每天基础碳排放
-        st.rerun()
+    with col2:
+        # 右侧：成长状态展示
+        st.subheader("🌱 作物成长状态")
+        
+        if plants:
+            for plant in plants:
+                config = plant_config[plant['type']]
+                days_since_planted = day - plant['planted_day']
+                days_remaining = max(0, plant['growth_days'] - days_since_planted)
+                progress = min(100, (days_since_planted / plant['growth_days']) * 100)
+                
+                st.write(f"**{config['name']}**")
+                st.progress(progress)
+                
+                if days_remaining > 0:
+                    st.write(f"⏳ 还需 {days_remaining} 天成熟")
+                else:
+                    st.success("🎉 可以收获！")
+                
+                st.write(f"💵 价值: {plant['value']} 金币")
+                st.write(f"🌿 每天吸收: {plant['absorption']} kg CO₂")
+                st.markdown("---")
+        else:
+            st.info("🏜️ 农场还没有种植作物")
+            st.write("在左侧商店购买种子开始种植吧！")
+        
+        # 碳平衡显示
+        st.subheader("📊 碳平衡")
+        net_emission = total_emission - total_absorbed
+        
+        if net_emission <= 0:
+            st.success(f"✅ 碳中和！剩余吸收: {abs(net_emission):.1f} kg")
+        else:
+            st.warning(f"⚠️ 碳排放超标: {net_emission:.1f} kg")
+        
+        # 目标提示
+        st.subheader("🎯 目标")
+        st.write("在14天内实现碳中和！")
+        st.write("种植更多植物来吸收CO₂吧！")
     
     # 游戏目标
     st.info("🎯 目标：通过种植树木和使用可再生能源，实现碳中和！")
