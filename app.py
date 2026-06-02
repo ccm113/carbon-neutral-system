@@ -13,7 +13,7 @@ from carbon_games_new import show_games_page
 
 # 页面配置
 st.set_page_config(
-    page_title="碳循环与碳中和管理系统",
+    page_title="居民碳视通",
     page_icon="🌍",
     layout="wide"
 )
@@ -43,7 +43,7 @@ llm = LLMIntegration()
 
 def login():
     """登录页面"""
-    st.title("🌱 居民低碳行为数据分析与智能减碳推荐系统")
+    st.title("🌍 居民碳视通")
     st.subheader("用户登录")
     
     # 加载记住的用户名
@@ -875,7 +875,7 @@ def main():
     choice = st.session_state.current_page
     
     # 主内容区
-    st.title("🌍 碳循环与碳中和管理系统")
+    st.title("🌍 居民碳视通")
     st.markdown("---")
     
     if choice == "数据加载":
