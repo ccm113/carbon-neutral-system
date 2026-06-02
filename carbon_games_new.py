@@ -435,7 +435,7 @@ def carbon_cycle_challenge(game):
     
     st.info(f"💡 提示：大气中CO₂安全水平是350 ppm，当前是 {co2_level} ppm")
 
-# 游戏3：环保知识问答
+# 游戏3：环保知识问答王
 def eco_quiz(game):
     st.header("📚 环保知识问答王")
     
@@ -445,16 +445,43 @@ def eco_quiz(game):
         st.session_state.quiz_index = 0
         st.session_state.quiz_asked = []
         st.session_state.quiz_show_answer = False
+        st.session_state.quiz_current_question = None
+        st.session_state.quiz_hint_used = False
+        st.session_state.quiz_helped = False
+    
+    # 获取用户金币
+    if 'current_user' in st.session_state:
+        user_id = st.session_state.current_user
+        try:
+            import database as db
+            user_data = db.get_user(user_id)
+            coins = user_data.get('coins', 100)
+        except:
+            coins = 100
+    else:
+        coins = 100
     
     score = st.session_state.quiz_score
-    index = st.session_state.quiz_index
     asked = st.session_state.quiz_asked
+    current_question = st.session_state.quiz_current_question
     
     # 游戏结束
-    if len(asked) >= len(game.quiz_questions):
+    if len(asked) >= 10:  # 固定10题
         st.subheader("🏆 问答结束！")
         
-        percentage = (score / len(game.quiz_questions)) * 100
+        # 计算奖励金币（每题5金币）
+        reward = score * 5
+        st.success(f"🎉 获得 {reward} 金币奖励！")
+        
+        # 更新用户金币
+        if 'current_user' in st.session_state:
+            try:
+                import database as db
+                db.update_user_coins(user_id, coins + reward)
+            except:
+                pass
+        
+        percentage = (score / 10) * 100
         
         if percentage >= 80:
             rating = "🌟 环保学霸"
@@ -470,7 +497,8 @@ def eco_quiz(game):
             color = "#F39C12"
         
         st.markdown(f"<h2 style='color: {color};'>{rating}</h2>", unsafe_allow_html=True)
-        st.metric("最终得分", f"{score}/{len(game.quiz_questions)}")
+        st.metric("最终得分", f"{score}/10")
+        st.metric("💰 获得金币", reward)
         st.progress(percentage / 100)
         
         if st.button("🔄 再玩一次", key="quiz_restart"):
@@ -478,39 +506,131 @@ def eco_quiz(game):
             st.session_state.quiz_index = 0
             st.session_state.quiz_asked = []
             st.session_state.quiz_show_answer = False
+            st.session_state.quiz_current_question = None
+            st.session_state.quiz_hint_used = False
+            st.session_state.quiz_helped = False
             st.rerun()
         return
     
-    # 获取下一个问题
-    available = [i for i in range(len(game.quiz_questions)) if i not in asked]
-    current_idx = random.choice(available)
-    question = game.quiz_questions[current_idx]
+    # 获取下一个问题（使用AI生成或默认题目）
+    if current_question is None or (st.session_state.quiz_show_answer and len(asked) < len(asked) + 1):
+        # 尝试使用AI生成题目
+        try:
+            from llm_integration import LLMIntegration
+            llm = LLMIntegration()
+            
+            prompt = """
+            请生成一道关于环保、低碳、碳中和的选择题，输出JSON格式：
+            {
+                "question": "题目内容",
+                "options": ["选项A", "选项B", "选项C", "选项D"],
+                "answer": 正确答案索引(0-3),
+                "explanation": "答案解释"
+            }
+            题目要多样化，涵盖垃圾分类、节能减排、绿色出行等主题。
+            """
+            
+            response = llm.generate_content(prompt)
+            import json
+            current_question = json.loads(response)
+            st.session_state.quiz_current_question = current_question
+            st.session_state.quiz_hint_used = False
+            st.session_state.quiz_helped = False
+        except Exception as e:
+            # AI不可用时使用默认题目
+            available = [i for i in range(len(game.quiz_questions)) if i not in asked]
+            if not available:
+                # 如果默认题目用完，随机生成
+                current_question = {
+                    "question": "以下哪种出行方式碳排放最低？",
+                    "options": ["自驾汽车", "乘坐公交", "骑自行车", "乘坐飞机"],
+                    "answer": 2,
+                    "explanation": "骑自行车是零碳排放的出行方式，是最环保的选择。"
+                }
+            else:
+                idx = random.choice(available)
+                current_question = game.quiz_questions[idx]
+            st.session_state.quiz_current_question = current_question
+            st.session_state.quiz_hint_used = False
+            st.session_state.quiz_helped = False
     
-    st.subheader(f"📝 第 {len(asked) + 1}/{len(game.quiz_questions)} 题")
-    st.write(f"**{question['question']}**")
+    # 显示金币
+    st.metric("💰 当前金币", coins)
+    
+    st.subheader(f"📝 第 {len(asked) + 1}/10 题")
+    st.write(f"**{current_question['question']}**")
+    
+    # 道具按钮
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if not st.session_state.quiz_hint_used and not st.session_state.quiz_helped:
+            if st.button(f"💡 提示 (-3金币)", key="quiz_hint", disabled=coins < 3):
+                if coins >= 3:
+                    st.session_state.quiz_hint_used = True
+                    st.info(f"💡 提示：答案不是选项{'A' if current_question['answer'] != 0 else 'B'}")
+                    # 更新金币（延迟更新）
+                    if 'current_user' in st.session_state:
+                        try:
+                            import database as db
+                            db.update_user_coins(user_id, coins - 3)
+                        except:
+                            pass
+    
+    with col2:
+        if not st.session_state.quiz_helped:
+            if st.button(f"📞 场外求助 (-5金币)", key="quiz_help", disabled=coins < 5):
+                if coins >= 5:
+                    st.session_state.quiz_helped = True
+                    answer_idx = current_question['answer']
+                    st.success(f"✅ 场外求助答案：{current_question['options'][answer_idx]}")
+                    if 'current_user' in st.session_state:
+                        try:
+                            import database as db
+                            db.update_user_coins(user_id, coins - 5)
+                        except:
+                            pass
+    
+    with col3:
+        if st.button(f"🔄 换一题 (-1金币)", key="quiz_switch", disabled=coins < 1):
+            if coins >= 1:
+                st.session_state.quiz_current_question = None
+                st.session_state.quiz_hint_used = False
+                st.session_state.quiz_helped = False
+                if 'current_user' in st.session_state:
+                    try:
+                        import database as db
+                        db.update_user_coins(user_id, coins - 1)
+                    except:
+                        pass
+                st.rerun()
     
     # 选项按钮
     if not st.session_state.quiz_show_answer:
-        for i, option in enumerate(question["options"]):
-            if st.button(f"{i+1}. {option}", key=f"quiz_option_{current_idx}_{i}", use_container_width=True):
-                st.session_state.quiz_asked.append(current_idx)
+        for i, option in enumerate(current_question["options"]):
+            if st.button(f"{i+1}. {option}", key=f"quiz_option_{len(asked)}_{i}", use_container_width=True):
+                st.session_state.quiz_asked.append(len(asked))
                 st.session_state.quiz_show_answer = True
                 
-                if i == question["answer"]:
+                if i == current_question["answer"]:
                     st.success("✅ 回答正确！")
                     st.session_state.quiz_score += 1
                 else:
-                    st.error(f"❌ 回答错误！正确答案是 {question['options'][question['answer']]}")
+                    correct_answer = current_question["options"][current_question["answer"]]
+                    st.error(f"❌ 回答错误！正确答案是 {correct_answer}")
+                    st.info(f"💡 {current_question['explanation']}")
                 st.rerun()
     else:
         # 显示答案和解释
-        st.info(f"💡 {question['explanation']}")
+        st.info(f"💡 {current_question['explanation']}")
         
         if st.button("➡️ 下一题", key="quiz_next"):
             st.session_state.quiz_show_answer = False
+            st.session_state.quiz_current_question = None
+            st.session_state.quiz_hint_used = False
+            st.session_state.quiz_helped = False
             st.rerun()
     
-    st.progress(len(asked) / len(game.quiz_questions))
+    st.progress(len(asked) / 10)
 
 # 游戏4：碳中和农场
 def carbon_farm():
