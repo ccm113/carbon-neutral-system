@@ -484,16 +484,17 @@ def carbon_cycle_challenge(game):
                     ]
                     
                     random_event = random.choice(event_types)
-                    if random_event["type"] == "warning":
-                        # 提取CO₂增加量
+                    if random_event and "text" in random_event:
                         import re
-                        match = re.search(r'增加 (\d+)', random_event["text"])
-                        if match:
-                            st.session_state.cycle_co2 += int(match.group(1))
-                    elif random_event["type"] == "success" or random_event["type"] == "info":
-                        match = re.search(r'减少 (\d+)', random_event["text"])
-                        if match:
-                            st.session_state.cycle_co2 -= int(match.group(1))
+                        if random_event["type"] == "warning":
+                            # 提取CO₂增加量
+                            match = re.search(r'增加 (\d+)', random_event["text"])
+                            if match:
+                                st.session_state.cycle_co2 += int(match.group(1))
+                        elif random_event["type"] == "success" or random_event["type"] == "info":
+                            match = re.search(r'减少 (\d+)', random_event["text"])
+                            if match:
+                                st.session_state.cycle_co2 -= int(match.group(1))
                     
                     events.append(random_event)
                     st.session_state.cycle_events = events
