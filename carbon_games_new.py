@@ -445,8 +445,8 @@ def carbon_cycle_challenge(game):
     with col3:
         st.metric("📊 当前得分", score)
     
-    # CO₂进度条
-    progress = min(co2_level / 500, 1)
+    # CO₂进度条 - 确保值在有效范围内
+    progress = min(max(co2_level / 500, 0), 1)
     st.progress(progress)
     
     # 显示当前回合事件
@@ -933,9 +933,11 @@ def carbon_farm():
             for plant in plants:
                 config = plant_config[plant['type']]
                 days_since_planted = day - plant['planted_day']
-                days_remaining = max(0, plant['growth_days'] - days_since_planted)
-                # st.progress需要0.0-1.0范围的值
-                progress = min(1.0, max(0.0, days_since_planted / plant['growth_days']))
+                days_remaining = max(0, plant.get('growth_days', 1) - days_since_planted)
+                # st.progress需要0.0-1.0范围的值，添加安全检查
+                progress = 0.0
+                if plant.get('growth_days') and plant['growth_days'] > 0:
+                    progress = min(1.0, max(0.0, days_since_planted / plant['growth_days']))
                 
                 st.write(f"**{config['name']}**")
                 st.progress(progress)
