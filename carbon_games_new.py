@@ -934,7 +934,8 @@ def carbon_farm():
                 config = plant_config[plant['type']]
                 days_since_planted = day - plant['planted_day']
                 days_remaining = max(0, plant['growth_days'] - days_since_planted)
-                progress = min(100, (days_since_planted / plant['growth_days']) * 100)
+                # st.progress需要0.0-1.0范围的值
+                progress = min(1.0, max(0.0, days_since_planted / plant['growth_days']))
                 
                 st.write(f"**{config['name']}**")
                 st.progress(progress)
