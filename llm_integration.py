@@ -702,7 +702,7 @@ class LLMIntegration:
         
         # 环保知识科普
         elif '碳中和' in question_lower:
-            return "碳中和是指通过植树造林、节能减排等方式，抵消自身产生的二氧化碳排放量，实现二氧化碳的"中和"。"
+            return '碳中和是指通过植树造林、节能减排等方式，抵消自身产生的二氧化碳排放量，实现二氧化碳的"中和"。'
         elif '碳达峰' in question_lower:
             return "碳达峰是指二氧化碳排放量达到峰值后不再增长，开始逐步下降的过程。中国承诺在2030年前实现碳达峰。"
         elif '碳排放' in question_lower or '碳足迹' in question_lower:

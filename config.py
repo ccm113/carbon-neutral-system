@@ -14,7 +14,11 @@ except ImportError:
 # LLM配置 - 优先使用Streamlit Secrets
 def get_secret(key, default=""):
     if STREAMLIT_AVAILABLE:
-        return st.secrets.get(key, default)
+        try:
+            return st.secrets.get(key, default)
+        except Exception:
+            # 本地运行时secrets文件不存在，回退到环境变量
+            return os.getenv(key, default)
     return os.getenv(key, default)
 
 OPENAI_API_KEY = get_secret("OPENAI_API_KEY", "")
