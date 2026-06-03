@@ -49,6 +49,19 @@ class LLMIntegration:
         """检查LLM是否可用"""
         return self.client is not None
     
+    def generate_content(self, prompt, system_prompt=None):
+        """生成内容（通用接口）"""
+        if not self.is_available():
+            # LLM不可用时返回错误标记，让调用方处理
+            return "llm_unavailable"
+        
+        result = self._call_llm(prompt, system_prompt)
+        # 如果返回错误标记，设置client为None，下次调用会走模拟数据
+        if result in ["api_key_error", "api_quota_error", "api_unknown_error", "llm_unavailable"]:
+            self.client = None
+            return "llm_unavailable"
+        return result
+    
     def generate_carbon_reduction_suggestions(self, user_profile):
         """根据用户画像生成个性化减碳建议（支持垃圾分类数据可选）"""
         if not self.is_available():
@@ -95,7 +108,12 @@ class LLMIntegration:
         请生成3-5条个性化减碳建议。
         """
         
-        return self._call_llm(prompt)
+        result = self._call_llm(prompt)
+        # 如果API调用失败，回退到模拟数据
+        if result in ["api_key_error", "api_quota_error", "api_unknown_error", "llm_unavailable"]:
+            self.client = None
+            return self._generate_simulated_suggestions(user_profile)
+        return result
     
     def generate_analysis_report(self, user_profile):
         """生成个人低碳生活分析报告（包含减碳建议）"""
@@ -149,7 +167,12 @@ class LLMIntegration:
         请生成一份完整的个人低碳生活分析报告。
         """
         
-        return self._call_llm(prompt)
+        result = self._call_llm(prompt)
+        # 如果API调用失败，回退到模拟数据
+        if result in ["api_key_error", "api_quota_error", "api_unknown_error", "llm_unavailable"]:
+            self.client = None
+            return self._generate_simulated_report(user_profile)
+        return result
     
     def answer_question(self, question, user_profile=None):
         """回答用户关于低碳、垃圾分类、节电出行的问题（支持意图识别和上下文理解）"""
@@ -191,6 +214,13 @@ class LLMIntegration:
         """
         
         response = self._call_llm(prompt)
+        
+        # 如果API调用失败，回退到模拟数据
+        if response in ["api_key_error", "api_quota_error", "api_unknown_error", "llm_unavailable"]:
+            self.client = None
+            simulated_response = self._answer_simulated(question, user_profile)
+            self.conversation_history.append({"role": "assistant", "content": simulated_response})
+            return simulated_response
         
         # 将回复添加到对话历史
         self.conversation_history.append({"role": "assistant", "content": response})
@@ -300,7 +330,16 @@ class LLMIntegration:
             return response.choices[0].message.content.strip()
         except Exception as e:
             print(f"LLM API error: {e}")
-            return f"抱歉，AI服务暂时不可用。错误信息：{str(e)}"
+            error_str = str(e).lower()
+            # 隐藏敏感信息，提供友好提示
+            if "invalid_api_key" in error_str or "incorrect_api_key" in error_str or "401" in str(e):
+                # API密钥无效，标记服务不可用，后续使用模拟数据
+                self.client = None
+                return "api_key_error"
+            elif "rate_limit" in error_str or "quota" in error_str:
+                return "api_quota_error"
+            else:
+                return "api_unknown_error"
     
     def _parse_intent(self, question):
         """使用LLM进行意图识别"""
