@@ -700,10 +700,46 @@ class LLMIntegration:
                 return f"您的出行得分为{user_profile['transport_score']}分，绿色出行比例{green_ratio:.1f}%。建议短途步行或骑行。"
             return "绿色出行推荐：步行、骑行、公共交通。"
         
-        # 通用回答
+        # 环保知识科普
+        elif '碳中和' in question_lower:
+            return "碳中和是指通过植树造林、节能减排等方式，抵消自身产生的二氧化碳排放量，实现二氧化碳的"中和"。"
+        elif '碳达峰' in question_lower:
+            return "碳达峰是指二氧化碳排放量达到峰值后不再增长，开始逐步下降的过程。中国承诺在2030年前实现碳达峰。"
+        elif '碳排放' in question_lower or '碳足迹' in question_lower:
+            return "碳排放是指人类活动产生的温室气体排放，碳足迹是衡量个人或组织碳排放的指标。"
+        elif '低碳' in question_lower:
+            return "低碳生活是指减少二氧化碳排放的生活方式，包括节约用电、绿色出行、垃圾分类等。"
+        elif '环保' in question_lower or '环境保护' in question_lower:
+            return "环境保护是指保护自然环境和生态平衡，减少污染和资源浪费，实现可持续发展。"
+        elif '可再生能源' in question_lower or '新能源' in question_lower:
+            return "可再生能源包括太阳能、风能、水能、生物质能等，是清洁能源，有助于减少碳排放。"
+        elif '节约' in question_lower or '减排' in question_lower:
+            return "节能减排是指节约能源消耗、减少污染物排放，是实现碳中和的重要途径。"
+        
+        # 通用回答 - 支持更多自由提问
         if user_profile:
-            return f"您的综合评分为{user_profile['total_score']:.1f}分。请问您想了解哪方面的内容？"
-        return "请问您想了解垃圾分类、用电节能还是出行方式相关的内容？"
+            # 根据用户得分给出个性化建议
+            suggestions = []
+            if user_profile.get('garbage_score', 100) < 70:
+                suggestions.append("垃圾分类可以加强")
+            if user_profile.get('electricity_score', 100) < 70:
+                suggestions.append("用电习惯可以优化")
+            if user_profile.get('transport_score', 100) < 70:
+                suggestions.append("绿色出行比例可以提高")
+            
+            if suggestions:
+                return f"您的综合评分为{user_profile['total_score']:.1f}分。建议关注：{', '.join(suggestions)}。请问您想了解具体哪方面？"
+            return f"您的综合评分为{user_profile['total_score']:.1f}分，表现不错！请问您想了解哪方面的内容？"
+        
+        # 无用户数据时的通用回答
+        return """我是您的低碳生活小助手！您可以问我：
+- 垃圾分类相关问题（如"什么是可回收物？"）
+- 节能省电技巧（如"如何省电？"）
+- 绿色出行建议（如"绿色出行有哪些方式？"）
+- 碳排放量计算（如"计算空调耗电"）
+- 环保知识科普（如"什么是碳中和？"）
+
+请问您想了解哪方面？"""
     
     def _query_user_data(self, question_lower, user_profile):
         """统一数据查询引擎 - 处理所有类型的用户数据查询"""
