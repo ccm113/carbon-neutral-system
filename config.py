@@ -21,9 +21,15 @@ def get_secret(key, default=""):
             return os.getenv(key, default)
     return os.getenv(key, default)
 
-OPENAI_API_KEY = get_secret("OPENAI_API_KEY", "")
-OPENAI_BASE_URL = get_secret("OPENAI_BASE_URL", "https://api.openai.com/v1")
-LLM_MODEL = get_secret("LLM_MODEL", "gpt-3.5-turbo")
+# 阿里云DashScope配置
+DASHSCOPE_API_KEY = get_secret("DASHSCOPE_API_KEY", "")
+MODEL_NAME = get_secret("MODEL_NAME", "qwen-turbo")
+MOCK_MODE = get_secret("MOCK_MODE", "false").lower() == "true"
+
+# OpenAI兼容模式配置 - 使用DashScope的兼容接口
+OPENAI_API_KEY = DASHSCOPE_API_KEY or get_secret("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = get_secret("OPENAI_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+LLM_MODEL = MODEL_NAME or get_secret("LLM_MODEL", "qwen-turbo")
 
 # 碳排放系数配置（单位：kg CO2）
 CARBON_FACTORS = {

@@ -1,7 +1,7 @@
 import os
 import json
 from typing import Optional
-from config import OPENAI_API_KEY, OPENAI_BASE_URL, LLM_MODEL
+from config import OPENAI_API_KEY, OPENAI_BASE_URL, LLM_MODEL, MOCK_MODE
 
 # 尝试导入OpenAI库，如果失败则使用模拟模式
 try:
@@ -9,6 +9,9 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
+
+# 根据配置决定是否启用模拟模式
+FORCE_MOCK_MODE = MOCK_MODE
 
 # 常用家电功率参考表（单位：W）
 APPLIANCE_POWER = {
@@ -35,14 +38,21 @@ class LLMIntegration:
     
     def _init_client(self):
         """初始化LLM客户端"""
+        # 如果配置了强制模拟模式，则不初始化客户端
+        if FORCE_MOCK_MODE:
+            print("MOCK_MODE is enabled, using simulated responses")
+            self.client = None
+            return
+        
         if OPENAI_API_KEY and OPENAI_AVAILABLE:
             try:
                 self.client = OpenAI(
                     api_key=OPENAI_API_KEY,
                     base_url=OPENAI_BASE_URL
                 )
+                print(f"Successfully initialized LLM client with model: {LLM_MODEL}")
             except Exception as e:
-                print(f"Failed to initialize OpenAI client: {e}")
+                print(f"Failed to initialize LLM client: {e}")
                 self.client = None
     
     def is_available(self):
