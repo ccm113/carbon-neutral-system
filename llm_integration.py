@@ -555,15 +555,20 @@ class LLMIntegration:
         
         # 垃圾分类分析（可选）
         if p.get('has_garbage'):
-            report += """
+            garbage_stats = stats.get('garbage', {})
+            garbage_total = garbage_stats.get('total_count', 0)
+            garbage_correct = garbage_stats.get('correct_count', 0)
+            garbage_accuracy = garbage_stats.get('accuracy_rate', 0)
+            garbage_level = '较高' if garbage_accuracy > 0.7 else '一般' if garbage_accuracy > 0.5 else '较低'
+            report += f"""
 一、垃圾分类分析
 ----------------
-- 总投放次数：{stats['garbage'].get('total_count', 0)} 次
-- 正确分类次数：{stats['garbage'].get('correct_count', 0)} 次
-- 正确率：{stats['garbage'].get('accuracy_rate', 0) * 100:.1f}%
+- 总投放次数：{garbage_total} 次
+- 正确分类次数：{garbage_correct} 次
+- 正确率：{garbage_accuracy * 100:.1f}%
 
-评估：您的垃圾分类正确率处于{'较高' if stats['garbage'].get('accuracy_rate', 0) > 0.7 else '一般' if stats['garbage'].get('accuracy_rate', 0) > 0.5 else '较低'}水平。
-""".format(stats=stats)
+评估：您的垃圾分类正确率处于{garbage_level}水平。
+"""
         else:
             report += """
 一、垃圾分类分析
@@ -575,15 +580,20 @@ class LLMIntegration:
         
         # 用电习惯分析（可选）
         if p.get('has_electricity'):
-            report += """
+            elec_stats = stats.get('electricity', {})
+            elec_total = elec_stats.get('total_consumption', 0)
+            elec_avg = elec_stats.get('avg_daily', 0)
+            elec_carbon = elec_stats.get('carbon_emission', 0)
+            elec_level = '低于' if elec_avg < 10 else '接近' if elec_avg < 15 else '高于'
+            report += f"""
 二、用电习惯分析
 ----------------
-- 总用电量：{stats['electricity'].get('total_consumption', 0):.1f} kWh
-- 日均用电：{stats['electricity'].get('avg_daily', 0):.1f} kWh
-- 用电碳排放：{stats['electricity'].get('carbon_emission', 0):.1f} kg CO2
+- 总用电量：{elec_total:.1f} kWh
+- 日均用电：{elec_avg:.1f} kWh
+- 用电碳排放：{elec_carbon:.1f} kg CO2
 
-评估：您的日均用电量{'低于' if stats['electricity'].get('avg_daily', 0) < 10 else '接近' if stats['electricity'].get('avg_daily', 0) < 15 else '高于'}普通家庭平均水平。
-""".format(stats=stats)
+评估：您的日均用电量{elec_level}普通家庭平均水平。
+"""
         else:
             report += """
 二、用电习惯分析
@@ -595,16 +605,22 @@ class LLMIntegration:
         
         # 出行方式分析（可选）
         if p.get('has_transport'):
-            report += """
+            trans_stats = stats.get('transport', {})
+            trans_trips = trans_stats.get('total_trips', 0)
+            trans_distance = trans_stats.get('total_distance', 0)
+            trans_green = trans_stats.get('green_ratio', 0)
+            trans_carbon = trans_stats.get('carbon_emission', 0)
+            trans_level = '较高' if trans_green > 0.6 else '一般' if trans_green > 0.4 else '较低'
+            report += f"""
 三、出行方式分析
 ----------------
-- 总出行次数：{stats['transport'].get('total_trips', 0)} 次
-- 总出行距离：{stats['transport'].get('total_distance', 0):.1f} km
-- 绿色出行比例：{stats['transport'].get('green_ratio', 0) * 100:.1f}%
-- 出行碳排放：{stats['transport'].get('carbon_emission', 0):.1f} kg CO2
+- 总出行次数：{trans_trips} 次
+- 总出行距离：{trans_distance:.1f} km
+- 绿色出行比例：{trans_green * 100:.1f}%
+- 出行碳排放：{trans_carbon:.1f} kg CO2
 
-评估：您的绿色出行比例{'较高' if stats['transport'].get('green_ratio', 0) > 0.6 else '一般' if stats['transport'].get('green_ratio', 0) > 0.4 else '较低'}。
-""".format(stats=stats)
+评估：您的绿色出行比例{trans_level}。
+"""
         else:
             report += """
 三、出行方式分析
@@ -617,20 +633,30 @@ class LLMIntegration:
         report += """
 【碳排放短板】
 """
-        if p['weaknesses']:
-            for w in p['weaknesses']:
-                report += f"- {w['category']}：{w['level']}（{w['score']}分）\n"
+        weaknesses = p.get('weaknesses', [])
+        if weaknesses:
+            for w in weaknesses:
+                category = w.get('category', '未知')
+                level = w.get('level', '未知')
+                score = w.get('score', 0)
+                report += f"- {category}：{level}（{score}分）\n"
         else:
             report += "暂无明显短板，继续保持！\n"
         
+        # 获取各得分（支持None值）
+        garbage_score = p.get('garbage_score', 100) or 100
+        elec_score = p.get('electricity_score', 100) or 100
+        trans_score = p.get('transport_score', 100) or 100
+        total_carbon = stats.get('total_carbon', 0)
+        
         report += f"""
 【改进建议】
-1. {'加强垃圾分类学习，提高分类准确率。' if p['garbage_score'] < 60 else '继续保持良好的垃圾分类习惯。'}
-2. {'优化用电习惯，减少不必要的能源消耗。' if p['electricity_score'] < 60 else '继续保持节约用电的好习惯。'}
-3. {'增加绿色出行比例，减少私家车使用。' if p['transport_score'] < 60 else '继续保持绿色出行的好习惯。'}
+1. {'加强垃圾分类学习，提高分类准确率。' if garbage_score < 60 else '继续保持良好的垃圾分类习惯。'}
+2. {'优化用电习惯，减少不必要的能源消耗。' if elec_score < 60 else '继续保持节约用电的好习惯。'}
+3. {'增加绿色出行比例，减少私家车使用。' if trans_score < 60 else '继续保持绿色出行的好习惯。'}
 
 【总结】
-您的总碳排放量为 {stats['total_carbon']:.1f} kg CO2。继续努力，您可以成为更好的低碳生活践行者！
+您的总碳排放量为 {total_carbon:.1f} kg CO2。继续努力，您可以成为更好的低碳生活践行者！
 
 ---
 报告生成时间：系统自动生成
