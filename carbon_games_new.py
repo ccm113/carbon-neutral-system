@@ -249,53 +249,66 @@ def daily_simulator(game):
     if st.session_state.sim_completed:
         st.subheader("🎉 一天结束！")
         
-        # 计算总碳排放量
-        total_emission = sum(choice["emission"] for choice in choices)
-        
-        # 生成称号
-        if total_emission <= 15:
-            title = "🌟 低碳达人"
-            color = "#2ECC71"
-            message = "太棒了！你的生活方式非常环保！"
-        elif total_emission <= 30:
-            title = "🌱 环保卫士"
-            color = "#3498DB"
-            message = "做得不错！继续保持低碳生活！"
-        elif total_emission <= 50:
-            title = "😊 低碳新手"
-            color = "#F39C12"
-            message = "还有改进空间，多关注环保！"
-        else:
-            title = "🔥 碳足迹大户"
-            color = "#E74C3C"
-            message = "需要采取更多低碳行动！"
-        
-        # 计算打败的百分比
-        beat_percent = min(99, max(1, 100 - int(total_emission * 1.5)))
-        
         # 分析做得好和不好的地方
         good_choices = [c for c in choices if c["emission"] <= 2]
         bad_choices = [c for c in choices if c["emission"] >= 10]
         
         # 显示碳排放量起伏数轴
         st.subheader("📊 全天碳排放量变化")
-        times = [c["time"] for c in choices]
-        emissions = [c["emission"] for c in choices]
         
-        df = pd.DataFrame({"时间": times, "碳排放量(kg)": emissions})
-        fig = px.line(df, x="时间", y="碳排放量(kg)", 
-                     title="一天中的碳排放量变化",
-                     markers=True,
-                     color_discrete_sequence=["#10B981"])
-        fig.update_layout(height=300)
-        st.plotly_chart(fig, use_container_width=True)
+        # 检查是否有数据
+        if not choices:
+            st.warning("⚠️ 还没有任何选择记录，请重新开始游戏！")
+            total_emission = 0
+            beat_percent = 99
+        else:
+            times = [c["time"] for c in choices]
+            emissions = [c["emission"] for c in choices]
+            
+            df = pd.DataFrame({"时间": times, "碳排放量(kg)": emissions})
+            fig = px.line(df, x="时间", y="碳排放量(kg)", 
+                         title="一天中的碳排放量变化",
+                         markers=True,
+                         color_discrete_sequence=["#10B981"])
+            fig.update_layout(height=300)
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # 计算总碳排放量
+            total_emission = sum(choice["emission"] for choice in choices)
+            
+            # 计算打败的百分比
+            beat_percent = min(99, max(1, 100 - int(total_emission * 1.5)))
         
-        # 显示结果
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("🌍 总碳排放量", f"{total_emission:.1f} kg")
-        with col2:
-            st.metric("🏆 打败用户", f"{beat_percent}%")
+        # 生成称号（仅在有数据时）
+        if choices:
+            if total_emission <= 15:
+                title = "🌟 低碳达人"
+                color = "#2ECC71"
+                message = "太棒了！你的生活方式非常环保！"
+            elif total_emission <= 30:
+                title = "🌱 环保卫士"
+                color = "#3498DB"
+                message = "做得不错！继续保持低碳生活！"
+            elif total_emission <= 50:
+                title = "😊 低碳新手"
+                color = "#F39C12"
+                message = "还有改进空间，多关注环保！"
+            else:
+                title = "🔥 碳足迹大户"
+                color = "#E74C3C"
+                message = "需要采取更多低碳行动！"
+        else:
+            title = "🌍 低碳生活"
+            color = "#3498DB"
+            message = "请先完成游戏来获取您的称号！"
+        
+        # 显示结果（仅在有数据时）
+        if choices:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("🌍 总碳排放量", f"{total_emission:.1f} kg")
+            with col2:
+                st.metric("🏆 打败用户", f"{beat_percent}%")
         
         st.markdown(f"<h2 style='color: {color};'>🏅 {title}</h2>", unsafe_allow_html=True)
         st.success(message)
